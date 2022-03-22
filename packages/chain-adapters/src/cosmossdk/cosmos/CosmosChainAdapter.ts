@@ -83,14 +83,17 @@ export class ChainAdapter
         to,
         wallet,
         bip44Params = CosmosSdkBaseAdapter.defaultBIP44Params,
-        chainSpecific: { gas, fee },
+        chainSpecific: { gas, fee, type },
         sendMax = false,
         value,
         memo = ''
       } = tx
+      const isTypeValid = Object.values(chainAdapters.cosmos.TransactionType).includes(type)
 
       if (!to) throw new Error('CosmosChainAdapter: to is required')
       if (!value) throw new Error('CosmosChainAdapter: value is required')
+      if (!type) throw new Error('CosmosChainAdapter: type is required')
+      if (!isTypeValid) throw new Error('CosmosChainAdapter: type is invalid')
 
       const path = toPath(bip44Params)
       const addressNList = bip32ToAddressNList(path)
@@ -100,6 +103,42 @@ export class ChainAdapter
 
       if (sendMax) {
         tx.value = bnOrZero(account.balance).minus(gas).toString()
+      }
+
+      const getMsgData = () => {
+        const msg = {
+          type: `cosmos-sdk/${type}`,
+          value: {}
+        }
+
+        switch (type) {
+          case chainAdapters.cosmos.TransactionType.Send: {
+            msg.value = {
+              amount: [
+                {
+                  amount: bnOrZero(value).toString(),
+                  denom: 'uatom'
+                }
+              ],
+              from_address: from,
+              to_address: to
+            }
+
+            return msg
+          }
+          case chainAdapters.cosmos.TransactionType.Delegate: {
+            msg.value = {
+              amount: {
+                amount: bnOrZero(value).toString(),
+                denom: 'uatom'
+              },
+              delegator_address: from,
+              validator_adress: to
+            }
+
+            return msg
+          }
+        }
       }
 
       const utx: CosmosTx = {
@@ -112,21 +151,7 @@ export class ChainAdapter
           ],
           gas: gas
         },
-        msg: [
-          {
-            type: 'cosmos-sdk/MsgSend',
-            value: {
-              amount: [
-                {
-                  amount: bnOrZero(value).toString(),
-                  denom: 'uatom'
-                }
-              ],
-              from_address: from,
-              to_address: to
-            }
-          }
-        ],
+        msg: [getMsgData()],
         signatures: [],
         memo
       }

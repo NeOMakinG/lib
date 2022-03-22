@@ -3,6 +3,11 @@ export type BuildTxInput = {
   fee: string
 }
 
+export enum TransactionType {
+  Send = 'MsgSend',
+  Delegate = 'MsgDelegate'
+}
+
 export type Account = {
   sequence: string
   accountNumber: string
